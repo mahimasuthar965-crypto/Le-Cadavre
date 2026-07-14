@@ -29,9 +29,10 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    gap: clamp(4px, 1vw, 16px);
     cursor: pointer;
   }
-  #corpse {
+  .corpse {
     aspect-ratio: 1 / 2;
     height: 100%;
     max-height: 100vh;
@@ -40,7 +41,16 @@
     flex-direction: column;
   }
   @supports not (aspect-ratio: 1 / 2) {
-    #corpse { width: 50vh; }         /* fallback for very old browsers */
+    .corpse { width: 50vh; }         /* fallback for very old browsers */
+  }
+
+  /* Phones / portrait: a single body */
+  .corpse:nth-child(n + 2) { display: none; }
+
+  /* Desktop / landscape: three bodies fill the width */
+  @media (orientation: landscape) and (min-width: 640px) {
+    .corpse:nth-child(n + 2) { display: flex; }
+    .corpse { max-width: calc((100vw - 32px) / 3); }
   }
 
   .panel {
@@ -68,7 +78,17 @@
 </head>
 <body>
 <div id="stage">
-  <div id="corpse">
+  <div class="corpse">
+    <div class="panel" data-part="head"><div class="card"><img alt="head"></div></div>
+    <div class="panel" data-part="torso"><div class="card"><img alt="torso"></div></div>
+    <div class="panel" data-part="leg"><div class="card"><img alt="leg"></div></div>
+  </div>
+  <div class="corpse">
+    <div class="panel" data-part="head"><div class="card"><img alt="head"></div></div>
+    <div class="panel" data-part="torso"><div class="card"><img alt="torso"></div></div>
+    <div class="panel" data-part="leg"><div class="card"><img alt="leg"></div></div>
+  </div>
+  <div class="corpse">
     <div class="panel" data-part="head"><div class="card"><img alt="head"></div></div>
     <div class="panel" data-part="torso"><div class="card"><img alt="torso"></div></div>
     <div class="panel" data-part="leg"><div class="card"><img alt="leg"></div></div>
@@ -91,7 +111,6 @@ const PARTS = {
 const FLIP_MS   = 220;   // duration of one half-flip (out or in)
 const STAGGER   = 180;   // delay between head / torso / leg flips
 
-const current = { head: -1, torso: -1, leg: -1 };
 let busy = false;
 
 /* Preload everything so flips never show a blank panel */
@@ -147,7 +166,6 @@ function flip(panel, part, newIdx, delay) {
 
   out.onfinish = () => {
     img.src = PARTS[part][newIdx];
-    current[part] = newIdx;
     card.animate(
       [{ transform: "rotateX(90deg)" }, { transform: "rotateX(0deg)" }],
       { duration: FLIP_MS, easing: "ease-out", fill: "forwards" }
@@ -155,28 +173,36 @@ function flip(panel, part, newIdx, delay) {
   };
 }
 
+/* An element is on screen only if it isn't display:none'd by CSS */
+const isVisible = el => el.offsetParent !== null;
+
 function shuffle() {
   if (busy) return;
   busy = true;
 
-  const combo  = nextCombo();
-  const panels = document.querySelectorAll(".panel");
-  panels.forEach((panel, i) => {
-    const part = panel.dataset.part;
-    flip(panel, part, combo[part], i * STAGGER);
+  /* Deal each on-screen body its own combination from the deck */
+  const bodies = [...document.querySelectorAll(".corpse")].filter(isVisible);
+  bodies.forEach(body => {
+    const combo = nextCombo();
+    body.querySelectorAll(".panel").forEach((panel, i) => {
+      const part = panel.dataset.part;
+      flip(panel, part, combo[part], i * STAGGER);
+    });
   });
 
-  const total = FLIP_MS * 2 + STAGGER * (panels.length - 1);
+  const total = FLIP_MS * 2 + STAGGER * 2;   // 3 panels per body, staggered
   setTimeout(() => { busy = false; }, total + 50);
 }
 
-/* First fill: no animation, just place the first combo from the deck */
+/* First fill: no animation. Fill every body (even hidden ones, so a
+   phone rotated to landscape already has all three ready). */
 window.addEventListener("DOMContentLoaded", () => {
-  const combo = nextCombo();
-  document.querySelectorAll(".panel").forEach(panel => {
-    const part = panel.dataset.part;
-    current[part] = combo[part];
-    panel.querySelector("img").src = PARTS[part][combo[part]];
+  document.querySelectorAll(".corpse").forEach(body => {
+    const combo = nextCombo();
+    body.querySelectorAll(".panel").forEach(panel => {
+      const part = panel.dataset.part;
+      panel.querySelector("img").src = PARTS[part][combo[part]];
+    });
   });
 });
 
