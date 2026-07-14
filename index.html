@@ -80,9 +80,12 @@
    Add or remove drawings here. Paths are relative to this html file.
 ------------------------------------------------------------------- */
 const PARTS = {
-  head:  ["Body Parts/HEAD/H_01.png",  "Body Parts/HEAD/H_02.png",  "Body Parts/HEAD/H_03.png"],
-  torso: ["Body Parts/TORSO/T_01.png", "Body Parts/TORSO/T_02.png", "Body Parts/TORSO/T_03.png"],
-  leg:   ["Body Parts/LEG/L_01.png",   "Body Parts/LEG/L_02.png",   "Body Parts/LEG/L_03.png"]
+  head:  ["BODY PARTS/HEAD/H_01.png",  "BODY PARTS/HEAD/H_02.png",  "BODY PARTS/HEAD/H_03.png",
+          "BODY PARTS/HEAD/H_04.png",  "BODY PARTS/HEAD/H_05.png",  "BODY PARTS/HEAD/H_06.png"],
+  torso: ["BODY PARTS/TORSO/T_01.png", "BODY PARTS/TORSO/T_02.png", "BODY PARTS/TORSO/T_03.png",
+          "BODY PARTS/TORSO/T_04.png", "BODY PARTS/TORSO/T_05.png", "BODY PARTS/TORSO/T_06.png"],
+  leg:   ["BODY PARTS/LEG/L_01.png",   "BODY PARTS/LEG/L_02.png",   "BODY PARTS/LEG/L_03.png",
+          "BODY PARTS/LEG/L_04.png",   "BODY PARTS/LEG/L_05.png",   "BODY PARTS/LEG/L_06.png"]
 };
 
 const FLIP_MS   = 220;   // duration of one half-flip (out or in)
@@ -94,13 +97,42 @@ let busy = false;
 /* Preload everything so flips never show a blank panel */
 Object.values(PARTS).flat().forEach(src => { const i = new Image(); i.src = src; });
 
-function pickNew(part) {
-  const list = PARTS[part];
-  if (list.length < 2) return 0;
-  let idx;
-  do { idx = Math.floor(Math.random() * list.length); }
-  while (idx === current[part]);
-  return idx;
+/* ------------------------------------------------------------------
+   Permutation queue: every possible (head, torso, leg) triple is
+   played exactly once, in random order, before any combination can
+   repeat. When the deck is exhausted it reshuffles for the next round
+   (guarding against the last combo of one round leading the next).
+------------------------------------------------------------------- */
+function buildDeck() {
+  const deck = [];
+  for (let h = 0; h < PARTS.head.length;  h++)
+  for (let t = 0; t < PARTS.torso.length; t++)
+  for (let l = 0; l < PARTS.leg.length;   l++)
+    deck.push({ head: h, torso: t, leg: l });
+  return deck;
+}
+function shuffleArray(a) {
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+let deck = shuffleArray(buildDeck());
+let deckPos = 0;
+
+function nextCombo() {
+  if (deckPos >= deck.length) {
+    const last = deck[deck.length - 1];
+    do { shuffleArray(deck); }
+    while (deck.length > 1 &&
+           deck[0].head === last.head &&
+           deck[0].torso === last.torso &&
+           deck[0].leg === last.leg);
+    deckPos = 0;
+  }
+  return deck[deckPos++];
 }
 
 /* Flipboard: rotate the card away, swap the image at 90°, rotate back */
@@ -127,23 +159,24 @@ function shuffle() {
   if (busy) return;
   busy = true;
 
+  const combo  = nextCombo();
   const panels = document.querySelectorAll(".panel");
   panels.forEach((panel, i) => {
     const part = panel.dataset.part;
-    flip(panel, part, pickNew(part), i * STAGGER);
+    flip(panel, part, combo[part], i * STAGGER);
   });
 
   const total = FLIP_MS * 2 + STAGGER * (panels.length - 1);
   setTimeout(() => { busy = false; }, total + 50);
 }
 
-/* First fill: no animation, just place random images */
+/* First fill: no animation, just place the first combo from the deck */
 window.addEventListener("DOMContentLoaded", () => {
+  const combo = nextCombo();
   document.querySelectorAll(".panel").forEach(panel => {
     const part = panel.dataset.part;
-    const idx  = pickNew(part);
-    current[part] = idx;
-    panel.querySelector("img").src = PARTS[part][idx];
+    current[part] = combo[part];
+    panel.querySelector("img").src = PARTS[part][combo[part]];
   });
 });
 
